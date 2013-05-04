@@ -1,0 +1,4 @@
+#!/bin/bash
+
+xterm -fn "-sony-*-*-*-*-*-*-*-*-*-*-*-*-*" -fg white -bg black &
+

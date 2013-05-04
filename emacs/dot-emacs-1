@@ -1,0 +1,82 @@
+(add-to-list 'load-path "/home/rchandramouli/elisp")
+(add-to-list 'load-path "/home/rchandramouli/elisp/tomorrow.cth")
+
+(custom-set-variables
+ '(load-home-init-file t t))
+(custom-set-faces)
+
+;; Load TTY colors
+(load "tty-colors.el")
+
+(require 'xcscope)
+(require 'color-theme)
+(require 'color-theme-tomorrow)
+(color-theme-tomorrow-night-bright)
+
+;;(set-frame-font
+;; "-b&h-lucidatypewriter-bold-r-normal-sans-14-140-75-75-m-90-iso10646-1")
+(set-frame-font "8x16")
+
+;; (set-frame-font 
+;; "-b&h-lucidatypewriter-bold-r-normal-sans-18-180-75-75-m-110-iso10646-1")
+
+(setq line-number-mode t)
+(setq column-number-mode t)
+
+;; programming mode settings
+(setq c-default-style "cc-mode"
+      c-basic-offset  4)
+
+(setq c-mode-hook
+    (function (lambda ()
+                (setq indent-tabs-mode nil)
+                (setq c-indent-level 4))))
+
+(setq objc-mode-hook
+    (function (lambda ()
+                (setq indent-tabs-mode nil)
+                (setq c-indent-level 4))))
+
+(setq c++-mode-hook
+    (function (lambda ()
+                (setq indent-tabs-mode nil)
+                (setq c-indent-level 4))))
+
+(global-font-lock-mode)
+
+(menu-bar-mode 0)
+(tool-bar-mode 0)
+(global-font-lock-mode 1)
+
+;; Load desktop sessions
+(desktop-load-default)
+(desktop-read)
+(desktop-save-mode 1)
+
+;; Change cursor color according to mode; inspired by
+;; http://www.emacswiki.org/emacs/ChangingCursorDynamically
+(setq djcb-read-only-color       "gray")
+;; valid values are t, nil, box, hollow, bar, (bar . WIDTH), hbar,
+;; (hbar. HEIGHT); see the docs for set-cursor-type
+
+(setq djcb-read-only-cursor-type 'hbar)
+(setq djcb-overwrite-color       "red")
+(setq djcb-overwrite-cursor-type 'box)
+(setq djcb-normal-color          "yellow")
+(setq djcb-normal-cursor-type    'bar)
+
+(defun djcb-set-cursor-according-to-mode ()
+  "change cursor color and type according to some minor modes."
+
+  (cond
+    (buffer-read-only
+      (set-cursor-color djcb-read-only-color)
+      (setq cursor-type djcb-read-only-cursor-type))
+    (overwrite-mode
+      (set-cursor-color djcb-overwrite-color)
+      (setq cursor-type djcb-overwrite-cursor-type))
+    (t 
+      (set-cursor-color djcb-normal-color)
+      (setq cursor-type djcb-normal-cursor-type))))
+
+(add-hook 'post-command-hook 'djcb-set-cursor-according-to-mode)

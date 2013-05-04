@@ -1,0 +1,318 @@
+#!/bin/bash
+
+BASHRC_SOURCED=1
+
+function get_working_branch()
+{
+   if [ ! -z "$REPOS_BRANCH" ]; then
+	echo $REPOS_BRANCH
+   else
+        echo "sandboxed"
+   fi
+}
+
+function setup_host()
+{
+    external_hosts="crete regserver cyprus doc"
+    host=$(hostname | cut -f1 -d.)
+
+    echo $external_hosts | grep $host
+    if [ $? -eq 0 ]; then
+	export HOST_HOME=/home/eni-exos/$(whoami)
+	export SHADOW_BASE_DIR=/sw-pool/sc/$(whoami)
+    else
+	export HOST_HOME=/home/$(whoami)
+    fi
+}
+
+function get_new_vnc()
+{
+    vncserver -depth 24 -geometry 1280x1024
+}
+
+function setup_quilt()
+{
+    export QUILT_PATCHES=$HOST_HOME/repos/myscm/$(get_working_branch)
+    export QUILT_PC=$HOST_HOME/repos/myscm/$(get_working_branch)/patches
+}
+
+function setup_repos_branch()
+{
+    export REPOS_CURRENT=$HOST_HOME/.repos.current
+    if [ -f $REPOS_CURRENT ]; then
+	export REPOS_BRANCH=$(cat $REPOS_CURRENT)
+    elif [ -z "$REPOS_BRANCH" ]; then
+	export REPOS_BRANCH="sandboxed"
+    fi
+}
+
+function get_system_width()
+{
+    ftype=$(file /bin/bash | cut -f1 -d- | cut -f3 -d" ")
+    echo -n $ftype
+}
+
+function setup_env()
+{
+    # Check for 32/64 bit system.
+    syswidth=$(get_system_width)
+    usr32_path=${HOST_HOME}/myusr/usr32
+    usr64_path=${HOST_HOME}/myusr/usr64
+
+    export MY_USR_PREFIX=$HOST_HOME/myusr/usr$(get_system_width)
+
+    export PATH=/usr/kerberos/bin:/usr/local/bin:/bin:/usr/bin:/usr/X11R6/bin
+    export PATH=$PATH:/mnt/software_tools/exos/tools
+    export PATH=$PATH:/auto/automation/Util
+    export PATH=$PATH:/opt/bldtools/x-tools/mips-extr443-linux-gnu/bin
+
+    # Override system paths with local
+    export PATH=${usr32_path}/bin:${usr32_path}/sbin:${HOST_HOME}/myusr/common:${PATH}
+
+    if [ ${syswidth} -eq 64 ]; then
+	export PATH=${usr64_path}/bin:${usr64_path}/sbin:${PATH}
+	export LD_LIBRARY_PATH=${usr64_path}/lib
+    else
+	export LD_LIBRARY_PATH=${usr32_path}/lib
+    fi
+
+    export LD_LIBRARY_PATH=${MY_USR_PREFIX}/lib
+    export PS1="$(uname -m):$(cat /proc/cpuinfo | grep processor | wc -l)~ \h (\W) # "
+
+    if [ "$TERM" != "dumb" ]; then
+	alias ls='ls -p --color'
+    else
+	alias ls='ls -p'
+    fi
+
+#    export PS1='[\W$(__git_ps1 " (%s)")] \h# '
+    alias ts_evb1='telnet 10.127.4.207 3700'
+    alias ts_tp5k='ssh admin@10.127.11.234'
+    alias ts_x24t='telnet 10.127.4.204 4000'
+    alias ts_x48t='telnet 10.127.4.204 4200'
+
+    # Hop tests
+    alias ts_hop1='telnet 10.127.4.204 3600'
+    alias ts_hop2='telnet 10.127.4.207 2800'
+    alias ts_hop3='telnet 10.127.4.207 2400'
+    alias ts_hop4='telnet 10.127.4.207 2200'
+
+    alias whobuild='ps ax | grep -o /data[/].*[/] | cut -f3 -d"/" | sort -u'
+    alias emacsgo='emacs -fn "8x16"'
+
+    alias ed.b="LD_LIBRARY_PATH=$MY_USR_PREFIX/lib byobu"
+}
+
+function change_repos_branch()
+{
+    local brname=$1
+
+    if [ -z "$brname" ]; then
+	return
+    fi
+    echo -n $brname > $(get_host_based_home_path)/.repos.current
+}
+
+function get_random()
+{
+    fmt="uL"
+    if [ "$1" == "x" ]; then
+	fmt="xL"
+    fi
+    dd if=/dev/urandom bs=8 count=1 2>/dev/null | od -t $fmt - | grep 0000000 | tr -s " " | cut -f2 -d" " | tr [a-f] [A-F]
+}
+
+setup_host
+setup_repos_branch
+setup_env
+#setup_quilt
+
+#setup term to 256-colors XTERM
+#do not export TERM, this fails to start byobu (sigh!)
+#export TERM=xterm-256colors
+
+# Import git-completion script
+#. ~/.git-completion.bash
+
+# Get dependencies
+function m_gdp()
+{
+    mips-extr443-linux-gnu-readelf -d $1 | grep NEEDED | cut -f2 -d[ | cut -f1 -d] | sort -u
+}
+
+function gdp()
+{
+    readelf -d $1 | grep NEEDED | cut -f2 -d[ | cut -f1 -d] | sort -u
+}
+
+function m_strip()
+{
+    mips-extr443-linux-gnu-strip -R .note -R .comment -R .pdr $1
+}
+
+function mk_strip()
+{
+    mips-extr443-linux-gnu-strip --strip-unneeded -R .pdr -R .rel.pdr $1
+}
+
+function d_fsize()
+{
+    find $1 -type f -exec ls -lS "{}" ";" | sed 's/  / /g' | cut -f5,9 -d" " | sort -r -n | awk '{printf "%-10d", $1; printf "%s\n", $2;}' >> $2
+    fsz=$(cat $2 | cut -f1 -d" ")
+    fsz=$(echo $fsz | sed 's/ /+/g' | bc)
+    echo -e "\nTOTAL = $fsz" >> $2
+}
+
+function _gp()
+{
+    pdir=$(getpdir)
+    if [ "$pdir" != "" ]; then
+	echo $pdir
+	cd $pdir
+    else
+	echo "Parent directory not set, already in parent or an unknown repository!"
+    fi
+}
+
+function _gpe()
+{
+    pdir=$(getpdir -e)
+    if [ "$pdir" != "" ]; then
+	echo $pdir
+	cd $pdir
+    else
+	echo "Parent directory not set, already in parent or an unknown repository!"
+    fi
+}
+
+function _gs()
+{
+    platform="$1"
+    if [ "$platform" == "" ]; then
+	platform="cougar"
+    fi
+    sdir=$(getsdir $platform)
+    if [ "$sdir" != "" ]; then 
+	echo $sdir
+	cd $sdir
+    else
+	echo "Not in parent directory for platform $platform!"
+    fi
+}
+
+function _gse()
+{
+    platform="$1"
+    if [ "$platform" == "" ]; then
+	platform="cougar"
+    fi
+    sdir=$(getsdir $platform -e)
+    if [ "$sdir" != "" ]; then 
+	echo $sdir
+	cd $sdir
+    else
+	echo "Not in parent directory for platform $platform!"
+    fi
+}
+
+function _gspath()
+{
+    echo \\\\$(/sbin/ifconfig eth0 | grep 'inet a' | cut -f2 -d: | cut -f1 -d' ')$(pwd | sed 's/\//\\/g')
+}
+
+function svnew()
+{
+    svn status | grep ^? | cut -f2- -d" " | sed 's/^[ ]*//g'
+}
+
+function _gettopdir()
+{
+    local repo
+    local thisdir
+    local cdir
+    local rbase
+    local cbase
+
+    repo=$(echo $(svn info 2>/dev/null | grep ^URL: || echo "") | cut -f2- -d: | sed 's/^[ ]*//g' | sed 's/svn:\/\//\//g')
+    if [ -z $repo ]; then
+	return 1
+    fi
+
+    thisdir=$(pwd)
+    cdir=$(pwd)
+
+    while true; do
+	rbase=$(basename $repo)
+	cbase=$(basename $cdir)
+
+	if [ "$rbase" == "$cbase" ]; then
+	    repo=$(dirname $repo)
+	    cdir=$(dirname $cdir)
+	else
+	    # Reached topdir
+	    break
+	fi
+    done
+    echo $cdir
+    return 0
+}
+
+function _topdir()
+{
+    local _top=$(_gettopdir)
+
+    if [ $? -eq 0 ]; then
+	cd $_top
+    fi
+}
+
+function _ptopdir()
+{
+    local _top=$(_gettopdir)
+    local thisdir=$(pwd)
+
+    if [ $? -eq 0 ]; then
+	if [ "$thisdir" != "$_top" ]; then
+	    pushd $_top
+	fi
+    fi
+}
+
+# Reboot switch connected to power terminal
+function _xrbt()
+{
+    while [ $# -gt 0 ];
+    do
+	xrbt $1 | grep "^[ \t]*\.$1"
+	shift 1
+	sleep 5
+    done
+}
+
+function gen_exos_defconfigs()
+{
+    for plat_arch in cougar:bcm1250 aspen_mio:bcm4704 aspen_msm:bcm1250 aspenv4_mio:bcm1250 everest_mio:bcm1250 everest_mm:i386 i386:i386 summit_rmi:bcm1250 summitlite:bcm53xxx
+    do
+	plat=$(echo ${plat_arch} | cut -f1 -d:)
+	arch=$(echo ${plat_arch} | cut -f2 -d:)
+
+	if [ ${arch} == "i386" ]; then
+	    cc=/opt/bldtools/x-tools/i686-extr443-linux-gnu/bin/i686-extr443-linux-gnu-
+	    karch=x86
+	else
+	    cc=/opt/bldtools/x-tools/mips-extr443-linux-gnu/bin/mips-extr443-linux-gnu-
+	    karch=mips
+	fi
+
+	if [ ! -f configs/defconfig-${plat} ]; then
+	    echo '*** No config file found for '${plat_arch}', skipping'
+	    continue
+	fi
+
+	echo '******* PROCESSING FOR CONFIGURATION ' ${plat_arch} ' *******'
+
+	cp configs/defconfig-${plat} ../.config
+	make -j -l 8 -C .. EXOS_PLATFORM=${plat} EXOS_ARCH=${arch} ARCH=${karch} CROSS_COMPILE=${cc} V=0 KCONFIG_NOTIMESTAMP=1 oldconfig
+	cp ../.config configs/defconfig-${plat}
+    done
+}

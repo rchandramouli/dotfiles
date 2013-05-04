@@ -1,0 +1,4 @@
+#!/bin/bash
+
+xterm -fn "-adobe-courier-medium-r-*-*-12-*-*-*-*-*-*-*" -fg white -bg black &
+

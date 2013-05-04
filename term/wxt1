@@ -1,0 +1,4 @@
+#!/bin/bash
+
+xterm -fn "-adobe-courier-bold-r-*-*-12-*-*-*-*-*-*-*" -fg black -bg white &
+

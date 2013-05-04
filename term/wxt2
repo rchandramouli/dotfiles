@@ -1,0 +1,4 @@
+#!/bin/bash
+
+xterm -fn "-misc-*-bold-*-*-*-14-*-*-*-*-*-*-*" -fg black -bg white &
+
